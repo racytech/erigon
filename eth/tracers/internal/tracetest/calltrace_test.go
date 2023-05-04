@@ -232,7 +232,7 @@ func BenchmarkTracers(b *testing.B) {
 
 func benchTracer(b *testing.B, tracerName string, test *callTracerTest) {
 	// Configure a blockchain with the given prestate
-	tx, err := types.DecodeTransaction(common.FromHex(test.Input))
+	tx, err := types.DecodeTransaction(common.FromHex(test.Input), false)
 	if err != nil {
 		b.Fatalf("failed to parse testcase input: %v", err)
 	}

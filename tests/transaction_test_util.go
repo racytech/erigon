@@ -60,7 +60,7 @@ type ttFork struct {
 
 func (tt *TransactionTest) Run(chainID *big.Int) error {
 	validateTx := func(rlpData hexutility.Bytes, signer types.Signer, rules *chain.Rules) (*libcommon.Address, *libcommon.Hash, uint64, error) {
-		tx, err := types.DecodeTransaction(rlpData)
+		tx, err := types.DecodeTransaction(rlpData, false)
 		if err != nil {
 			return nil, nil, 0, err
 		}

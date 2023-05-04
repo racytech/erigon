@@ -116,7 +116,7 @@ func TestEIP155SigningVitalik(t *testing.T) {
 	} {
 		signer := LatestSignerForChainID(big.NewInt(1))
 
-		tx, err := DecodeTransaction(common.Hex2Bytes(test.txRlp))
+		tx, err := DecodeTransaction(common.Hex2Bytes(test.txRlp), false)
 		if err != nil {
 			t.Errorf("%d: %v", i, err)
 			continue

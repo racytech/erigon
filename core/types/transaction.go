@@ -152,25 +152,17 @@ func DecodeRLPTransaction(s *rlp.Stream) (Transaction, error) {
 	return UnmarshalTransactionFromBinary(b)
 }
 
-func DecodeWrappedTransaction(data []byte) (Transaction, error) {
+// DecodeTransaction decodes a transaction either in RLP or canonical format.
+// `isNetwork` - indicates whether this transaction is network encoded.
+func DecodeTransaction(data []byte, isNetwork bool) (Transaction, error) {
 	if len(data) == 0 {
 		return nil, io.EOF
 	}
-	if data[0] < 0x80 {
-		// the encoding is canonical, not RLP
-		return UnmarshalWrappedTransactionFromBinary(data)
-	}
-	s := rlp.NewStream(bytes.NewReader(data), uint64(len(data)))
-	return DecodeRLPTransaction(s)
-}
+	if data[0] < 0x80 { // the encoding is canonical, not RLP
+		if isNetwork {
+			return UnmarshalWrappedTransactionFromBinary(data)
+		}
 
-// DecodeTransaction decodes a transaction either in RLP or canonical format
-func DecodeTransaction(data []byte) (Transaction, error) {
-	if len(data) == 0 {
-		return nil, io.EOF
-	}
-	if data[0] < 0x80 {
-		// the encoding is canonical, not RLP
 		return UnmarshalTransactionFromBinary(data)
 	}
 	s := rlp.NewStream(bytes.NewReader(data), uint64(len(data)))
@@ -205,7 +197,8 @@ func UnmarshalTransactionFromBinary(data []byte) (Transaction, error) {
 	default:
 		if data[0] >= 0x80 {
 			// Tx is type legacy which is RLP encoded
-			return DecodeTransaction(data)
+			s := rlp.NewStream(bytes.NewReader(data), uint64(len(data)))
+			return DecodeRLPTransaction(s)
 		}
 		return nil, ErrTxTypeNotSupported
 	}
