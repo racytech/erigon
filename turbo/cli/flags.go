@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ledgerwatch/erigon-lib/txpool/txpoolcfg"
@@ -356,7 +357,8 @@ func normalizeFlagArgs(args []string) []string {
 
 	seen := make(map[string]bool)
 
-	for _, arg := range args {
+	for _, str := range args {
+		arg := strings.ToLower(str)
 		if _, _seen := seen[arg]; !_seen {
 			if v, ok := aliases[arg]; ok {
 				result = append(result, v)
