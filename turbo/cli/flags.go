@@ -346,6 +346,31 @@ func ApplyFlagsForNodeConfig(ctx *cli.Context, cfg *nodecfg.Config, logger log.L
 	cfg.DatabaseVerbosity = kv.DBVerbosityLvl(ctx.Int(DatabaseVerbosityFlag.Name))
 }
 
+func normalizeFlagArgs(args []string) []string {
+
+	result := make([]string, 0, len(args))
+
+	aliases := map[string]string{
+		"any": "*",
+	}
+
+	seen := make(map[string]bool)
+
+	for _, arg := range args {
+		if _, _seen := seen[arg]; !_seen {
+			if v, ok := aliases[arg]; ok {
+				result = append(result, v)
+				seen[v] = true
+			} else {
+				result = append(result, arg)
+			}
+		}
+		seen[arg] = true
+	}
+
+	return result
+}
+
 func setEmbeddedRpcDaemon(ctx *cli.Context, cfg *nodecfg.Config, logger log.Logger) {
 	jwtSecretPath := ctx.String(utils.JWTSecretPath.Name)
 	if jwtSecretPath == "" {
@@ -371,8 +396,8 @@ func setEmbeddedRpcDaemon(ctx *cli.Context, cfg *nodecfg.Config, logger log.Logg
 		JWTSecretPath:            jwtSecretPath,
 		TraceRequests:            ctx.Bool(utils.HTTPTraceFlag.Name),
 		HttpCORSDomain:           utils.SplitAndTrim(ctx.String(utils.HTTPCORSDomainFlag.Name)),
-		HttpVirtualHost:          utils.SplitAndTrim(ctx.String(utils.HTTPVirtualHostsFlag.Name)),
-		AuthRpcVirtualHost:       utils.SplitAndTrim(ctx.String(utils.AuthRpcVirtualHostsFlag.Name)),
+		HttpVirtualHost:          normalizeFlagArgs(utils.SplitAndTrim(ctx.String(utils.HTTPVirtualHostsFlag.Name))),
+		AuthRpcVirtualHost:       normalizeFlagArgs(utils.SplitAndTrim(ctx.String(utils.AuthRpcVirtualHostsFlag.Name))),
 		API:                      utils.SplitAndTrim(apis),
 		HTTPTimeouts: rpccfg.HTTPTimeouts{
 			ReadTimeout:  ctx.Duration(HTTPReadTimeoutFlag.Name),
