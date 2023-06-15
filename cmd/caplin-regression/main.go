@@ -2,7 +2,8 @@ package main
 
 import (
 	"flag"
-	"net/http"
+
+	"github.com/ledgerwatch/erigon/turbo/debug"
 
 	"github.com/ledgerwatch/erigon/cl/cltypes"
 	"github.com/ledgerwatch/erigon/cl/phase1/forkchoice"
@@ -27,6 +28,8 @@ func main() {
 	step := flag.Int("step", 32, "how often to log performance")
 	pprof := flag.Bool("pprof", true, "turn on profiling")
 	loop := flag.Bool("loop", true, "loop the test in an infinite loop")
+	testsDir := flag.String("testsDir", "cmd/caplin-regression/caplin-tests", "directory to the tests")
+
 	all := flag.Bool("all", true, "loop trhough all the test")
 
 	flag.Parse()
@@ -35,17 +38,11 @@ func main() {
 		return
 	}
 	r, err := regression.NewRegressionTester(
-		"cmd/caplin-regression/caplin-tests",
+		*testsDir,
 	)
 	if *pprof {
 		// Server for pprof
-		go func() {
-			log.Info("Serving pprof on localhost:6060")
-			if err := http.ListenAndServe("localhost:6060", nil); err != nil { //nolint:gosec
-				log.Error("Could not serve pprof", "err", err)
-			}
-
-		}()
+		debug.StartPProf("localhost:6060", true)
 	}
 
 	if err != nil {
