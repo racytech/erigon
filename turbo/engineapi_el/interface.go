@@ -10,16 +10,21 @@ import (
 
 // CL <-> EL communication interface
 type IEngineAPI interface {
-	NewPayloadV1(context.Context, ExecutionPayload) (PayloadStatus, error)
-	NewPayloadV2(context.Context, ExecutionPayload) (PayloadStatus, error)
-	NewPayloadV3(ctx context.Context, executionPayload ExecutionPayload, expectedBlobHashes []common.Hash, parentBeaconBlockRoot *common.Hash) (PayloadStatus, error)
-	ForkchoiceUpdatedV1(ctx context.Context, forkChoiceState ForkChoiceState, payloadAttributes PayloadAttributes) (ForkChoiceUpdatedResponse, error)
-	ForkchoiceUpdatedV2(ctx context.Context, forkChoiceState ForkChoiceState, payloadAttributes PayloadAttributes) (ForkChoiceUpdatedResponse, error)
-	ForkchoiceUpdatedV3(ctx context.Context, forkChoiceState ForkChoiceState, payloadAttributes PayloadAttributes) (ForkChoiceUpdatedResponse, error)
-	GetPayloadV1(ctx context.Context, payloadID hexutility.Bytes) (ExecutionPayload, error)
-	GetPayloadV2(ctx context.Context, payloadID hexutility.Bytes) (GetPayloadResponse, error)
-	GetPayloadV3(ctx context.Context, payloadID hexutility.Bytes) (GetPayloadResponse, error)
-	ExchangeTransitionConfigurationV1(ctx context.Context, transitionConfiguration TransitionConfiguration) (TransitionConfiguration, error)
-	GetPayloadBodiesByHashV1(ctx context.Context, hashes []common.Hash) ([]ExecutionPayloadBodyV1, error)
-	GetPayloadBodiesByRangeV1(ctx context.Context, start, count hexutil.Uint64) ([]ExecutionPayloadBodyV1, error)
+	NewPayloadV1(context.Context, *ExecutionPayload) (*PayloadStatus, error)
+	NewPayloadV2(context.Context, *ExecutionPayload) (*PayloadStatus, error)
+	NewPayloadV3(context.Context, *ExecutionPayload, []common.Hash, *common.Hash) (*PayloadStatus, error)
+
+	ForkchoiceUpdatedV1(context.Context, *ForkChoiceState, *PayloadAttributes) (*ForkChoiceUpdatedResponse, error)
+	ForkchoiceUpdatedV2(context.Context, *ForkChoiceState, *PayloadAttributes) (*ForkChoiceUpdatedResponse, error)
+	ForkchoiceUpdatedV3(context.Context, *ForkChoiceState, *PayloadAttributes) (*ForkChoiceUpdatedResponse, error)
+
+	GetPayloadV1(context.Context, hexutility.Bytes) (*ExecutionPayload, error)
+	GetPayloadV2(context.Context, hexutility.Bytes) (*GetPayloadResponse, error)
+	GetPayloadV3(context.Context, hexutility.Bytes) (*GetPayloadResponse, error)
+
+	ExchangeTransitionConfigurationV1(context.Context, *TransitionConfiguration) (*TransitionConfiguration, error)
+
+	GetPayloadBodiesByHashV1(context.Context, []common.Hash) ([]*ExecutionPayloadBodyV1, error)
+
+	GetPayloadBodiesByRangeV1(context.Context, hexutil.Uint64, hexutil.Uint64) ([]*ExecutionPayloadBodyV1, error)
 }

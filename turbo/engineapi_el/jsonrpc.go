@@ -38,7 +38,7 @@ type ExecutionPayload struct {
 
 // PayloadAttributes represent the attributes required to start assembling a payload
 type ForkChoiceState struct {
-	HeadHash           common.Hash `json:"headBlockHash"             gencodec:"required"`
+	HeadBlockHash      common.Hash `json:"headBlockHash"             gencodec:"required"`
 	SafeBlockHash      common.Hash `json:"safeBlockHash"             gencodec:"required"`
 	FinalizedBlockHash common.Hash `json:"finalizedBlockHash"        gencodec:"required"`
 }
@@ -72,22 +72,22 @@ type ExecutionPayloadBodyV1 struct {
 }
 
 type PayloadStatus struct {
-	Status          EngineStatus      `json:"status" gencodec:"required"`
+	Status          string            `json:"status" gencodec:"required"`
 	ValidationError *StringifiedError `json:"validationError"`
-	LatestValidHash *common.Hash      `json:"latestValidHash"`
+	LatestValidHash common.Hash       `json:"latestValidHash"`
 	CriticalError   error
 }
 
 type ForkChoiceUpdatedResponse struct {
-	PayloadId     *hexutility.Bytes `json:"payloadId"` // We need to reformat the uint64 so this makes more sense.
-	PayloadStatus *PayloadStatus    `json:"payloadStatus"`
+	PayloadID     *hexutility.Bytes `json:"payloadId"` // We need to reformat the uint64 so this makes more sense.
+	PayloadStatus PayloadStatus     `json:"payloadStatus"`
 }
 
 type GetPayloadResponse struct {
-	ExecutionPayload      *ExecutionPayload `json:"executionPayload" gencodec:"required"`
-	BlockValue            *hexutil.Big      `json:"blockValue"`
-	BlobsBundle           *BlobsBundleV1    `json:"blobsBundle"`
-	ShouldOverrideBuilder bool              `json:"shouldOverrideBuilder"`
+	ExecutionPayload      ExecutionPayload `json:"executionPayload" gencodec:"required"`
+	BlockValue            *hexutil.Big     `json:"blockValue"`
+	BlobsBundle           *BlobsBundleV1   `json:"blobsBundle"`
+	ShouldOverrideBuilder bool             `json:"shouldOverrideBuilder"`
 }
 
 type StringifiedError struct{ err error }
