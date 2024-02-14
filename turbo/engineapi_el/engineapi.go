@@ -121,22 +121,24 @@ func compareCapabilities(from []string, to []string) []string {
 	return result
 }
 
+/* Logging shortcuts */
+
 func (api *EngineAPI) _log(msg string, ctx ...interface{}) {
-	api.logger.Info(msg, ctx)
+	api.logger.Info(msg, ctx...)
 }
 
 func (api *EngineAPI) _warn(msg string, ctx ...interface{}) {
-	api.logger.Warn(msg, ctx)
+	api.logger.Warn(msg, ctx...)
 }
 
 func (api *EngineAPI) _error(msg string, ctx ...interface{}) {
-	api.logger.Error(msg, ctx)
+	api.logger.Error(msg, ctx...)
 }
 
 func (api *EngineAPI) _debug(msg string, ctx ...interface{}) {
-	api.logger.Debug(msg, ctx)
+	api.logger.Debug(msg, ctx...)
 }
 
 func (api *EngineAPI) _trace(msg string, ctx ...interface{}) {
-	api.logger.Trace(msg, ctx)
+	api.logger.Trace(msg, ctx...)
 }
