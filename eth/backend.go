@@ -801,6 +801,7 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 		blockReader,
 		chainKv,
 		backend.sentriesClient.Hd,
+		assembleBlockPOS,
 	)
 
 	var engine execution_client.ExecutionEngine

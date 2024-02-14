@@ -13,6 +13,7 @@ import (
 	"github.com/ledgerwatch/erigon/cmd/rpcdaemon/cli/httpcfg"
 	"github.com/ledgerwatch/erigon/consensus"
 	"github.com/ledgerwatch/erigon/rpc"
+	"github.com/ledgerwatch/erigon/turbo/builder"
 	"github.com/ledgerwatch/erigon/turbo/jsonrpc"
 	"github.com/ledgerwatch/erigon/turbo/rpchelper"
 	"github.com/ledgerwatch/erigon/turbo/services"
@@ -28,6 +29,11 @@ type EngineAPI struct {
 	chain  *blockchain
 	logger log.Logger
 
+	builder *payloadBuilder
+
+	// builderFunc builder.BlockBuilderFunc
+	// builders    map[uint64]*builder.BlockBuilder
+
 	lock sync.Mutex
 }
 
@@ -38,15 +44,18 @@ func NewEngineAPI(
 	blockReader services.FullBlockReader,
 	chainDB kv.RwDB,
 	hd *headerdownload.HeaderDownload,
+	builderFunc builder.BlockBuilderFunc,
 ) *EngineAPI {
 
 	chain := newBlockChain(ctx, blockReader, chainDB)
+	builder := newPayloadBuilder(builderFunc)
 	engineAPI := EngineAPI{
-		hd:     hd,
-		ctx:    ctx,
-		config: config,
-		chain:  chain,
-		logger: logger,
+		hd:      hd,
+		ctx:     ctx,
+		config:  config,
+		chain:   chain,
+		logger:  logger,
+		builder: builder,
 	}
 
 	return &engineAPI
@@ -123,7 +132,7 @@ func compareCapabilities(from []string, to []string) []string {
 
 /* Logging shortcuts */
 
-func (api *EngineAPI) _log(msg string, ctx ...interface{}) {
+func (api *EngineAPI) _info(msg string, ctx ...interface{}) {
 	api.logger.Info(msg, ctx...)
 }
 
