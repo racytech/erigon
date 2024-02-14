@@ -794,6 +794,15 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 		config.Miner.EnabledPOS)
 	backend.engineBackendRPC = engineBackendRPC
 
+	backend.engineAPI = engineapi_el.NewEngineAPI(
+		ctx,
+		logger,
+		chainConfig,
+		blockReader,
+		chainKv,
+		backend.sentriesClient.Hd,
+	)
+
 	var engine execution_client.ExecutionEngine
 
 	// Gnosis has too few blocks on his network for phase2 to work. Once we have proper snapshot automation, it can go back to normal.

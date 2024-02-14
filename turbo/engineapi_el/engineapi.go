@@ -33,10 +33,10 @@ type EngineAPI struct {
 
 func NewEngineAPI(
 	ctx context.Context,
+	logger log.Logger,
 	config *chain.Config,
 	blockReader services.FullBlockReader,
 	chainDB kv.RwDB,
-	logger log.Logger,
 	hd *headerdownload.HeaderDownload,
 ) *EngineAPI {
 
