@@ -16,46 +16,50 @@ type blockchain struct {
 	ctx         context.Context
 	blockReader services.FullBlockReader
 	chainDB     kv.RwDB
+
+	memChain    []*types.Block // TODO(racytech): see how much max bytes takes one block
+	memChainIdx int
 }
 
 func newBlockChain(ctx context.Context, blockReader services.FullBlockReader, chainDB kv.RwDB) *blockchain {
 	return &blockchain{ctx: ctx, blockReader: blockReader, chainDB: chainDB}
 }
 
-func (chain *blockchain) readForkchoiceHead() (libcommon.Hash, error) {
-	tx, err := chain.chainDB.BeginRo(chain.ctx)
-	if err != nil {
-		return libcommon.Hash{}, fmt.Errorf("EnginAPI: readForkchoiceHead: Failed to BeginRo: %s", err)
-	}
-	defer tx.Rollback()
-	hash := rawdb.ReadForkchoiceHead(tx)
+// func (chain *blockchain) readForkchoiceHead() (libcommon.Hash, error) {
+// 	tx, err := chain.chainDB.BeginRo(chain.ctx)
+// 	if err != nil {
+// 		return libcommon.Hash{}, fmt.Errorf("EnginAPI: readForkchoiceHead: Failed to BeginRo: %s", err)
+// 	}
+// 	defer tx.Rollback()
+// 	hash := rawdb.ReadForkchoiceHead(tx)
 
-	return hash, nil
-}
+// 	return hash, nil
+// }
 
-func (chain *blockchain) readForkchoiceFinalized() (libcommon.Hash, error) {
-	tx, err := chain.chainDB.BeginRo(chain.ctx)
-	if err != nil {
-		return libcommon.Hash{}, fmt.Errorf("EnginAPI: readForkchoiceFinalized: Failed to BeginRo: %s", err)
-	}
-	defer tx.Rollback()
+// func (chain *blockchain) readForkchoiceFinalized() (libcommon.Hash, error) {
+// 	tx, err := chain.chainDB.BeginRo(chain.ctx)
+// 	if err != nil {
+// 		return libcommon.Hash{}, fmt.Errorf("EnginAPI: readForkchoiceFinalized: Failed to BeginRo: %s", err)
+// 	}
+// 	defer tx.Rollback()
 
-	hash := rawdb.ReadForkchoiceFinalized(tx)
+// 	hash := rawdb.ReadForkchoiceFinalized(tx)
 
-	return hash, nil
-}
+// 	return hash, nil
+// }
 
-func (chain *blockchain) readForkchoiceSafe() (libcommon.Hash, error) {
-	tx, err := chain.chainDB.BeginRo(chain.ctx)
-	if err != nil {
-		return libcommon.Hash{}, fmt.Errorf("EnginAPI: readForkchoiceSafe: Failed to BeginRo: %s", err)
-	}
-	defer tx.Rollback()
+// unused
+// func (chain *blockchain) readForkchoiceSafe() (libcommon.Hash, error) {
+// 	tx, err := chain.chainDB.BeginRo(chain.ctx)
+// 	if err != nil {
+// 		return libcommon.Hash{}, fmt.Errorf("EnginAPI: readForkchoiceSafe: Failed to BeginRo: %s", err)
+// 	}
+// 	defer tx.Rollback()
 
-	hash := rawdb.ReadForkchoiceSafe(tx)
+// 	hash := rawdb.ReadForkchoiceSafe(tx)
 
-	return hash, nil
-}
+// 	return hash, nil
+// }
 
 func (chain *blockchain) blockByHash(hash libcommon.Hash) (*types.Block, error) {
 	tx, err := chain.chainDB.BeginRo(chain.ctx)
@@ -157,4 +161,8 @@ func (chain *blockchain) currentHead() (*types.Header, error) {
 	}
 
 	return rawdb.ReadHeaderByHash(tx, hash)
+}
+
+func (chain *blockchain) insertBlock(*types.Block) {
+
 }

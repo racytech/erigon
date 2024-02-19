@@ -68,7 +68,7 @@ func (api *EngineAPI) forkchoiceUpdated(update *ForkChoiceState, payloadAttribut
 	clHeadHash := update.HeadBlockHash
 
 	logPrefix := fmt.Sprintf("[ForkchoiceUpdatedV%v]", version)
-	msg := fmt.Sprintf("%v Started processing", logPrefix)
+	msg := fmt.Sprintf("%v Received request", logPrefix)
 	api._info(msg, []interface{}{"hash", clHeadHash}...)
 
 	// If we are syncing there is no reason to go any ferther
@@ -179,7 +179,21 @@ func (api *EngineAPI) newPayload(payload *ExecutionPayload, expectedBlobHashes [
 	defer api.lock.Unlock()
 
 	logPrefix := fmt.Sprintf("[NewPayloadV%v]", version)
-	// msg := fmt.Sprintf("%v Started", logPrefix)
+	msg := fmt.Sprintf("%v Started", logPrefix)
+	api._info(msg, []interface{}{"block_hash", payload.BlockHash}...)
+
+	// TODO(racytech): check if we have this block already
+
+	block, err := payloadToBlock(payload, expectedBlobHashes, parentBeaconBlockRoot)
+	if err != nil {
+		msg = fmt.Sprintf("%v error constructing block from execution payload", logPrefix)
+		api._warn(msg, []interface{}{"error", err.Error()}...)
+		return payloadResponse(INVALID, err, block.Hash(), nil), nil
+	}
+
+	parent, err := api.chain.blockByHash(block.ParentHash())
+
+	// TODO(racytech): sanity check for TTD PTD and TD (same as in FCU)
 
 	errMsg := fmt.Sprintf("%v: Reached End", logPrefix)
 	return nil, makeError(SERVER_ERROR, errMsg)

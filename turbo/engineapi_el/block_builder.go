@@ -6,8 +6,6 @@ import (
 	"sync"
 
 	"github.com/holiman/uint256"
-	"github.com/ledgerwatch/erigon-lib/common/hexutil"
-	"github.com/ledgerwatch/erigon-lib/common/hexutility"
 	"github.com/ledgerwatch/erigon/core"
 	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/turbo/builder"
@@ -56,7 +54,7 @@ func (pb *payloadBuilder) extractPayload(id uint64) (*GetPayloadResponse, error)
 
 	builder, ok := pb.payloadsMap[id]
 	if !ok {
-		return nil, fmt.Errorf("Can not find payload by given id=%d", id)
+		return nil, fmt.Errorf("can not find payload by given id=%d", id)
 	}
 
 	blockWithReceipts, err := builder.Stop()
@@ -74,27 +72,27 @@ func (pb *payloadBuilder) extractPayload(id uint64) (*GetPayloadResponse, error)
 	}
 
 	// Convert [][]byte to []hexutility.Bytes
-	transactions := make([]hexutility.Bytes, len(encodedTransactions))
+	transactions := make([][]byte, len(encodedTransactions))
 	for i, transaction := range encodedTransactions {
 		transactions[i] = transaction
 	}
 
 	payload := ExecutionPayload{
 		ParentHash:    header.ParentHash,
-		Timestamp:     hexutil.Uint64(header.Time),
+		Timestamp:     header.Time,
 		PrevRandao:    header.MixDigest,
 		StateRoot:     block.Root(),
 		LogsBloom:     block.Bloom().Bytes(),
-		GasLimit:      hexutil.Uint64(block.GasLimit()),
-		GasUsed:       hexutil.Uint64(block.GasUsed()),
-		BlockNumber:   hexutil.Uint64(block.NumberU64()),
+		GasLimit:      block.GasLimit(),
+		GasUsed:       block.GasUsed(),
+		BlockNumber:   block.NumberU64(),
 		ExtraData:     block.Extra(),
-		BaseFeePerGas: (*hexutil.Big)(baseFee),
+		BaseFeePerGas: baseFee,
 		BlockHash:     block.Hash(),
 		Transactions:  transactions,
 		Withdrawals:   block.Withdrawals(),
-		BlobGasUsed:   (*hexutil.Uint64)(block.Header().BlobGasUsed),
-		ExcessBlobGas: (*hexutil.Uint64)(block.Header().ExcessBlobGas),
+		BlobGasUsed:   block.Header().BlobGasUsed,
+		ExcessBlobGas: block.Header().ExcessBlobGas,
 	}
 
 	blockValue := blockValue(blockWithReceipts, baseFee)
@@ -139,7 +137,7 @@ func (pb *payloadBuilder) extractPayload(id uint64) (*GetPayloadResponse, error)
 }
 
 // The expected value to be received by the feeRecipient in wei
-func blockValue(br *types.BlockWithReceipts, baseFee *big.Int) *hexutil.Big {
+func blockValue(br *types.BlockWithReceipts, baseFee *big.Int) *big.Int {
 	blockValue := uint256.NewInt(0)
 	txs := br.Block.Transactions()
 	uint256BaseFee := uint256.MustFromBig(baseFee)
@@ -149,5 +147,5 @@ func blockValue(br *types.BlockWithReceipts, baseFee *big.Int) *hexutil.Big {
 		txValue := new(uint256.Int).Mul(gas, effectiveTip)
 		blockValue.Add(blockValue, txValue)
 	}
-	return (*hexutil.Big)(blockValue.ToBig())
+	return blockValue.ToBig()
 }

@@ -1,5 +1,7 @@
 package engineapi_el
 
+import libcommon "github.com/ledgerwatch/erigon-lib/common"
+
 const (
 	VALID              = "VALID"
 	INVALID            = "INVALID"
@@ -50,3 +52,13 @@ var (
 		msg:  "Invalid payload attributes",
 	}
 )
+
+func payloadResponse(status string, validationError error, latestValidHash libcommon.Hash, crit error) *PayloadStatus {
+	err := validationError.Error()
+	return &PayloadStatus{
+		Status:          status,
+		ValidationError: &err,
+		LatestValidHash: latestValidHash,
+		CriticalError:   crit,
+	}
+}

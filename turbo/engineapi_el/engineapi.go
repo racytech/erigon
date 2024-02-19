@@ -66,7 +66,14 @@ func (api *EngineAPI) Start(httpConfig *httpcfg.HttpCfg, db kv.RoDB, blockReader
 	eth rpchelper.ApiBackend, txPool txpool.TxpoolClient, mining txpool.MiningClient) {
 	base := jsonrpc.NewBaseApi(filters, stateCache, blockReader, agg, httpConfig.WithDatadir, httpConfig.EvmCallTimeout, engineReader, httpConfig.Dirs)
 
-	ethImpl := jsonrpc.NewEthAPI(base, db, eth, txPool, mining, httpConfig.Gascap, httpConfig.ReturnDataLimit, httpConfig.AllowUnprotectedTxs, httpConfig.MaxGetProofRewindBlockCount, api.logger)
+	ethImpl := jsonrpc.NewEthAPI(
+		base, db, eth, txPool, mining,
+		httpConfig.Gascap,
+		httpConfig.ReturnDataLimit,
+		httpConfig.AllowUnprotectedTxs,
+		httpConfig.MaxGetProofRewindBlockCount,
+		api.logger,
+	)
 
 	apiList := []rpc.API{
 		{
