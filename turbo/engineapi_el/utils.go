@@ -73,7 +73,10 @@ func payloadToBlock(payload *ExecutionPayload, versionedHashes []common.Hash, be
 	var withdrawalsHash *libcommon.Hash
 	if payload.Withdrawals != nil {
 		wh := types.DeriveSha(types.Withdrawals(payload.Withdrawals))
+		fmt.Println("WITHDRAWALS EXPECTED: ", wh)
 		withdrawalsHash = &wh
+	} else {
+		fmt.Println("WITHDRAWALS IS NIL")
 	}
 
 	header := types.Header{

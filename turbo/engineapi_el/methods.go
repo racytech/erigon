@@ -183,7 +183,7 @@ func (api *EngineAPI) newPayload(payload *ExecutionPayload, expectedBlobHashes [
 	api.logger.Info(msg, []interface{}{"block_hash", payload.BlockHash}...)
 
 	// TODO(racytech): check if we have this block already
-
+	fmt.Println("WITHDRAWALS BEFORE: ", payload.Withdrawals)
 	block, err := payloadToBlock(payload, expectedBlobHashes, parentBeaconBlockRoot)
 	if err != nil {
 		msg = fmt.Sprintf("%v error constructing block from execution payload", logPrefix)
@@ -196,12 +196,19 @@ func (api *EngineAPI) newPayload(payload *ExecutionPayload, expectedBlobHashes [
 		return nil, err
 	}
 
+	fmt.Println("WITHDRAWALS HASH: ", block.WithdrawalsHash())
 	// TODO(racytech): sanity check for TTD PTD and TD (same as in FCU)
 
 	// TODO(racytech): make all required checks here (validity check)
 
-	api.chain.insertBlock(block, parent)
-
+	err = api.chain.insertBlock(block, parent)
+	if err != nil {
+		errMsg := err.Error()
+		return &PayloadStatus{
+			Status:          INVALID,
+			ValidationError: &errMsg,
+		}, err
+	}
 	errMsg := fmt.Sprintf("%v: Reached End", logPrefix)
 	return nil, makeError(SERVER_ERROR, errMsg)
 }

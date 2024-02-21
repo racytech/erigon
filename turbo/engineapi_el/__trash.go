@@ -89,3 +89,90 @@
 	// fmt.Println("HEADER: ", block.NumberU64())
 
 	// return makeFCUresponce(VALID, lastValidHash, nil, nil), nil
+
+	// stateRootBegin, err := calculateStateRoot(tx)
+	// if err != nil {
+	// 	fmt.Println("ERROR: ", err)
+	// }
+	// // chain.execBlock(txc, block.Header(), block.RawBody(), 0)
+
+	// // MakePreState()
+
+	// // we need to execute block here and compare root hashes
+
+	// quit := chain.ctx.Done()
+
+	// // state is stored through ethdb batches
+	// batch := membatch.NewHashBatch(tx, quit, "/tmp/state_rw", chain.logger)
+	// // avoids stacking defers within the loop
+	// defer func() {
+	// 	batch.Close()
+	// }()
+
+	// stateR := state.NewPlainStateReader(batch)
+	// stateW := state.NewPlainStateWriter(batch, nil, block.NumberU64())
+
+	// getHeader := func(hash libcommon.Hash, number uint64) *types.Header {
+	// 	h, _ := chain.blockReader.Header(context.Background(), tx, hash, number)
+	// 	return h
+	// }
+
+	// blockHashFunc := core.GetHashFn(block.Header(), getHeader)
+
+	// ibs := state.New(stateR)
+	// header := block.Header()
+
+	// gp := new(core.GasPool)
+	// gp.AddGas(block.GasLimit()).AddBlobGas(chain.config.GetMaxBlobGasPerBlock())
+
+	// var rejectedTxs []*core.RejectedTx
+	// includedTxs := make(types.Transactions, 0, block.Transactions().Len())
+
+	// blockContext := core.NewEVMBlockContext(header, blockHashFunc, chain.engine, nil)
+	// evm := vm.NewEVM(blockContext, evmtypes.TxContext{}, ibs, chain.config, *VMcfg)
+	// rules := evm.ChainRules()
+
+	// chain.logger.Info("Block execution started", "block", block.NumberU64())
+	// for i, tx := range block.Transactions() {
+
+	// 	msg, err := tx.AsMessage(*types.MakeSigner(chain.config, header.Number.Uint64(), header.Time), header.BaseFee, rules)
+	// 	if err != nil {
+	// 		rejectedTxs = append(rejectedTxs, &core.RejectedTx{Index: i, Err: err.Error()})
+	// 	}
+
+	// 	if _, err = core.ApplyMessage(evm, msg, gp, false /* refunds */, false /* gasBailout */); err != nil {
+	// 		chain.logger.Error("Error applying message", "error", err.Error())
+	// 		continue
+	// 	}
+
+	// 	if err = ibs.FinalizeTx(rules, stateW); err != nil {
+	// 		chain.logger.Error("Error finalizing transaction", "error", err.Error())
+	// 		continue
+	// 	}
+
+	// 	includedTxs = append(includedTxs, tx)
+	// }
+
+	// if err = ibs.CommitBlock(rules, stateW); err != nil {
+	// 	chain.logger.Error("Error commiting block", "error", err.Error())
+	// 	return err
+	// }
+
+	// txRoot := types.DeriveSha(includedTxs)
+	// if txRoot != block.TxHash() {
+	// 	return fmt.Errorf("transaction root mismatch: expected: %v, got: %v", block.TxHash(), txRoot)
+	// }
+	// fmt.Printf("expected txRoot: %v\n, got: %v\n", block.TxHash(), txRoot)
+
+	// stateRoot, err := calculateStateRoot(tx)
+	// if err != nil {
+	// 	return fmt.Errorf("error calculating state root: %w", err)
+	// }
+	// fmt.Printf("expected stateRoot: %v\n, got: %v\n, state root begin: %v", block.Root(), stateRoot, stateRootBegin)
+
+	// if len(rejectedTxs) > 0 {
+	// 	chain.logger.Warn("Some transactions were rejected", "count", len(rejectedTxs))
+	// 	for _, rtx := range rejectedTxs {
+	// 		chain.logger.Error("Transaction was rejected", "tx_number", rtx.Index, "error", rtx.Err)
+	// 	}
+	// }
