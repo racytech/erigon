@@ -10,6 +10,7 @@ import (
 	"github.com/ledgerwatch/erigon-lib/common/hexutility"
 	"github.com/ledgerwatch/erigon/consensus/merge"
 	"github.com/ledgerwatch/erigon/core/types"
+	"github.com/ledgerwatch/log/v3"
 )
 
 func makeFCUresponce(status string, lastValidHash libcommon.Hash, errMsg *string, payloadID *hexutility.Bytes) *ForkChoiceUpdatedResponse {
@@ -98,7 +99,7 @@ func payloadToBlock(payload *ExecutionPayload, versionedHashes []common.Hash, be
 	}
 
 	block := types.NewBlockWithHeader(&header).WithTransactions(transactions).WithWithdrawals(payload.Withdrawals)
-	cmpHeaders(block.Header(), &header, payload)
+	// cmpHeaders(block.Header(), &header, payload)
 	if block.Hash() != payload.BlockHash {
 		return nil, fmt.Errorf("block hashes does not match: expected: %v, got :%v", payload.BlockHash, block.Hash())
 	}
@@ -125,4 +126,26 @@ func cmpHeaders(a, b *types.Header, c *ExecutionPayload) {
 	fmt.Println("ExcessBlobGas a: %v, b: %v, original: %v", a.ExcessBlobGas, b.ExcessBlobGas, c.ExcessBlobGas)
 	fmt.Printf("BlobGasUsed a: %v, b: %v, original: %v", a.BlobGasUsed, b.BlobGasUsed, c.BlobGasUsed)
 	fmt.Println("ParentBeaconBlockRoot ", a.ParentBeaconBlockRoot == b.ParentBeaconBlockRoot)
+}
+
+/* Logging shortcuts */
+
+func log_info(logger log.Logger, msg string, ctx ...interface{}) {
+	logger.Info(msg, ctx...)
+}
+
+func log_warn(logger log.Logger, msg string, ctx ...interface{}) {
+	logger.Warn(msg, ctx...)
+}
+
+func log_error(logger log.Logger, msg string, ctx ...interface{}) {
+	logger.Error(msg, ctx...)
+}
+
+func log_debug(logger log.Logger, msg string, ctx ...interface{}) {
+	logger.Debug(msg, ctx...)
+}
+
+func log_trace(logger log.Logger, msg string, ctx ...interface{}) {
+	logger.Trace(msg, ctx...)
 }

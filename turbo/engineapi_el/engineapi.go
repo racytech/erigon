@@ -45,9 +45,10 @@ func NewEngineAPI(
 	chainDB kv.RwDB,
 	hd *headerdownload.HeaderDownload,
 	builderFunc builder.BlockBuilderFunc,
+	engine consensus.Engine,
 ) *EngineAPI {
 
-	chain := newBlockChain(ctx, blockReader, chainDB)
+	chain := newBlockChain(ctx, blockReader, chainDB, logger, config, engine)
 	builder := newPayloadBuilder(builderFunc)
 	engineAPI := EngineAPI{
 		hd:      hd,
@@ -135,26 +136,4 @@ func compareCapabilities(from []string, to []string) []string {
 	}
 
 	return result
-}
-
-/* Logging shortcuts */
-
-func (api *EngineAPI) _info(msg string, ctx ...interface{}) {
-	api.logger.Info(msg, ctx...)
-}
-
-func (api *EngineAPI) _warn(msg string, ctx ...interface{}) {
-	api.logger.Warn(msg, ctx...)
-}
-
-func (api *EngineAPI) _error(msg string, ctx ...interface{}) {
-	api.logger.Error(msg, ctx...)
-}
-
-func (api *EngineAPI) _debug(msg string, ctx ...interface{}) {
-	api.logger.Debug(msg, ctx...)
-}
-
-func (api *EngineAPI) _trace(msg string, ctx ...interface{}) {
-	api.logger.Trace(msg, ctx...)
 }

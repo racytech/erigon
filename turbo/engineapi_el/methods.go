@@ -69,13 +69,13 @@ func (api *EngineAPI) forkchoiceUpdated(update *ForkChoiceState, payloadAttribut
 
 	logPrefix := fmt.Sprintf("[ForkchoiceUpdatedV%v]", version)
 	msg := fmt.Sprintf("%v Received request", logPrefix)
-	api._info(msg, []interface{}{"hash", clHeadHash}...)
+	api.logger.Info(msg, []interface{}{"hash", clHeadHash}...)
 
 	// If we are syncing there is no reason to go any ferther
 	// return SYNCING status right away
 	if api.hd.PosStatus() == headerdownload.Syncing {
 		msg := fmt.Sprintf("%v Execution layer is syncing, cannot process forkchoice", logPrefix)
-		api._info(msg, []interface{}{"hash", clHeadHash}...)
+		api.logger.Info(msg, []interface{}{"hash", clHeadHash}...)
 		return makeFCUresponce(SYNCING, libcommon.Hash{}, nil, nil), nil
 	}
 
@@ -86,7 +86,7 @@ func (api *EngineAPI) forkchoiceUpdated(update *ForkChoiceState, payloadAttribut
 
 	if block == nil {
 		msg := fmt.Sprintf("%v Unknown hash received: block is nil", logPrefix)
-		api._warn(msg, []interface{}{"hash", clHeadHash}...)
+		api.logger.Warn(msg, []interface{}{"hash", clHeadHash}...)
 		return &STATUS_SYNCING, nil
 	}
 
@@ -151,7 +151,7 @@ func (api *EngineAPI) forkchoiceUpdated(update *ForkChoiceState, payloadAttribut
 		// TODO(racytech): make sure we're not missing anything here
 
 		msg := fmt.Errorf("%v Head hash refers to PoW block", logPrefix)
-		api._warn(msg.Error(), []interface{}{"hash", clHeadHash}...)
+		api.logger.Warn(msg.Error(), []interface{}{"hash", clHeadHash}...)
 		str := msg.Error()
 		return makeFCUresponce(INVALID, libcommon.Hash{}, &str, nil), nil
 	}
@@ -180,14 +180,14 @@ func (api *EngineAPI) newPayload(payload *ExecutionPayload, expectedBlobHashes [
 
 	logPrefix := fmt.Sprintf("[NewPayloadV%v]", version)
 	msg := fmt.Sprintf("%v Started", logPrefix)
-	api._info(msg, []interface{}{"block_hash", payload.BlockHash}...)
+	api.logger.Info(msg, []interface{}{"block_hash", payload.BlockHash}...)
 
 	// TODO(racytech): check if we have this block already
 
 	block, err := payloadToBlock(payload, expectedBlobHashes, parentBeaconBlockRoot)
 	if err != nil {
 		msg = fmt.Sprintf("%v error constructing block from execution payload", logPrefix)
-		api._warn(msg, []interface{}{"error", err.Error()}...)
+		api.logger.Warn(msg, []interface{}{"error", err.Error()}...)
 		return payloadResponse(INVALID, err, libcommon.Hash{}, nil), nil
 	}
 
@@ -232,7 +232,7 @@ func (api *EngineAPI) getPayload(ctx context.Context, payloadID hexutility.Bytes
 
 	logPrefix := fmt.Sprintf("[GetPayloadV%v]", version)
 	msg := fmt.Sprintf("%v Started", logPrefix)
-	api._info(msg, []interface{}{"payloadID", id}...)
+	api.logger.Info(msg, []interface{}{"payloadID", id}...)
 
 	res, err := api.builder.extractPayload(id)
 	if err != nil {
@@ -240,7 +240,7 @@ func (api *EngineAPI) getPayload(ctx context.Context, payloadID hexutility.Bytes
 	}
 
 	msg = fmt.Sprintf("%v Finished", logPrefix)
-	api._info(msg, []interface{}{"parent_hash", res.ExecutionPayload.ParentHash}...)
+	api.logger.Info(msg, []interface{}{"parent_hash", res.ExecutionPayload.ParentHash}...)
 
 	return res, nil
 }
