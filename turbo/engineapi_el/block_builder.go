@@ -21,9 +21,14 @@ import (
 // 	ParentBeaconBlockRoot *libcommon.Hash     // added in Dencun (EIP-4788)
 // }
 
+const MAX_PAYLOAD_CYCLE = 1024
+
 type payloadBuilder struct {
 	payloadID   uint64
-	payloadsMap map[uint64]*builder.BlockBuilder // TODO: make it array of 1024 cycled items 0..1023 -> 1024..2047 -> 2048..4097 -> and so on
+	payloadsMap map[uint64]*builder.BlockBuilder // TODO: make it array of 1024 cycled items 0..1023 -> 1024..2047 -> 2048..4097 -> and so on (n%1024)
+
+	// payloadArr []int64
+
 	builderFunc builder.BlockBuilderFunc
 
 	lock sync.Mutex
@@ -33,6 +38,7 @@ func newPayloadBuilder(builderFunc builder.BlockBuilderFunc) *payloadBuilder {
 	return &payloadBuilder{
 		builderFunc: builderFunc,
 		payloadsMap: make(map[uint64]*builder.BlockBuilder),
+		// payloadArr:  make([]int64, MAX_PAYLOAD_CYCLE),
 	}
 }
 
@@ -62,39 +68,36 @@ func (pb *payloadBuilder) extractPayload(id uint64) (*GetPayloadResponse, error)
 		return nil, err
 	}
 	block := blockWithReceipts.Block
-	header := block.Header()
-
-	baseFee := header.BaseFee
 
 	encodedTransactions, err := types.MarshalTransactionsBinary(block.Transactions())
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert [][]byte to []hexutility.Bytes
 	transactions := make([][]byte, len(encodedTransactions))
-	for i, transaction := range encodedTransactions {
-		transactions[i] = transaction
-	}
+	copy(transactions, encodedTransactions)
 
 	payload := ExecutionPayload{
-		ParentHash:    header.ParentHash,
-		Timestamp:     header.Time,
-		PrevRandao:    header.MixDigest,
+		BlockHash:     block.Hash(),
+		ParentHash:    block.ParentHash(),
+		FeeRecipient:  block.Coinbase(),
 		StateRoot:     block.Root(),
-		LogsBloom:     block.Bloom().Bytes(),
+		BlockNumber:   block.NumberU64(),
 		GasLimit:      block.GasLimit(),
 		GasUsed:       block.GasUsed(),
-		BlockNumber:   block.NumberU64(),
-		ExtraData:     block.Extra(),
-		BaseFeePerGas: baseFee,
-		BlockHash:     block.Hash(),
+		BaseFeePerGas: block.BaseFee(),
+		Timestamp:     block.Time(),
+		ReceiptsRoot:  block.ReceiptHash(),
+		LogsBloom:     block.Bloom().Bytes(),
 		Transactions:  transactions,
+		PrevRandao:    block.MixDigest(),
+		ExtraData:     block.Extra(),
 		Withdrawals:   block.Withdrawals(),
 		BlobGasUsed:   block.Header().BlobGasUsed,
 		ExcessBlobGas: block.Header().ExcessBlobGas,
 	}
 
+	baseFee := block.BaseFee()
 	blockValue := blockValue(blockWithReceipts, baseFee)
 
 	blobsBundle := &BlobsBundleV1{}

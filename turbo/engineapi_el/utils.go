@@ -69,9 +69,6 @@ func payloadToBlock(payload *ExecutionPayload, versionedHashes []common.Hash, be
 		}
 	}
 
-	var bloom types.Bloom
-	copy(bloom[:], payload.LogsBloom)
-
 	var withdrawalsHash *libcommon.Hash
 	if payload.Withdrawals != nil {
 		wh := types.DeriveSha(types.Withdrawals(payload.Withdrawals))
@@ -80,30 +77,52 @@ func payloadToBlock(payload *ExecutionPayload, versionedHashes []common.Hash, be
 
 	header := types.Header{
 		ParentHash:            payload.ParentHash,
+		UncleHash:             types.EmptyUncleHash,
 		Coinbase:              payload.FeeRecipient,
 		Root:                  payload.StateRoot,
-		Bloom:                 bloom,
+		TxHash:                types.DeriveSha(types.BinaryTransactions(txs)),
+		ReceiptHash:           payload.ReceiptsRoot,
+		Bloom:                 types.BytesToBloom(payload.LogsBloom),
+		Difficulty:            merge.ProofOfStakeDifficulty,
+		Number:                new(big.Int).SetUint64(payload.BlockNumber),
+		GasLimit:              payload.GasLimit,
+		GasUsed:               payload.GasUsed,
+		Time:                  payload.Timestamp,
 		BaseFee:               payload.BaseFeePerGas,
 		Extra:                 payload.ExtraData,
-		Number:                new(big.Int).SetUint64(payload.BlockNumber),
-		GasUsed:               payload.GasUsed,
-		GasLimit:              payload.GasLimit,
-		Time:                  payload.Timestamp,
 		MixDigest:             payload.PrevRandao,
-		UncleHash:             types.EmptyUncleHash,
-		Difficulty:            merge.ProofOfStakeDifficulty,
-		Nonce:                 merge.ProofOfStakeNonce,
-		ReceiptHash:           payload.ReceiptsRoot,
-		TxHash:                types.DeriveSha(types.BinaryTransactions(txs)),
 		WithdrawalsHash:       withdrawalsHash,
 		ExcessBlobGas:         payload.ExcessBlobGas,
 		BlobGasUsed:           payload.BlobGasUsed,
 		ParentBeaconBlockRoot: beaconRoot,
 	}
 
-	block := types.NewBlock(&header, transactions, nil, nil, payload.Withdrawals)
+	block := types.NewBlockWithHeader(&header).WithTransactions(transactions).WithWithdrawals(payload.Withdrawals)
+	cmpHeaders(block.Header(), &header, payload)
 	if block.Hash() != payload.BlockHash {
 		return nil, fmt.Errorf("block hashes does not match: expected: %v, got :%v", payload.BlockHash, block.Hash())
 	}
-	return nil, nil
+	return block, nil
+}
+
+func cmpHeaders(a, b *types.Header, c *ExecutionPayload) {
+	fmt.Println("ParentHash", a.ParentHash == b.ParentHash)
+	fmt.Println("UncleHash", a.UncleHash == b.UncleHash)
+	fmt.Println("Coinbase", a.Coinbase == b.Coinbase)
+	fmt.Println("Root", a.Root == b.Root)
+	fmt.Println("TxHash", a.TxHash == b.TxHash)
+	fmt.Printf("ReceiptHash a: %v, b: %v, c: %v\n", a.ReceiptHash, b.ReceiptHash, c.ReceiptsRoot)
+	fmt.Println("Bloom", a.Bloom == b.Bloom)
+	fmt.Printf("Difficulty a: %v, b: %v\n", a.Difficulty.Uint64(), b.Difficulty.Uint64())
+	fmt.Printf("Number a: %v, b: %v\n", a.Number.Uint64(), b.Number.Uint64())
+	fmt.Println("GasLimi", a.GasLimit == b.GasLimit)
+	fmt.Println("GasUsed", a.GasUsed == b.GasUsed)
+	fmt.Println("Time", a.Time == b.Time)
+	fmt.Printf("BaseFee a: %v, b :%v\n", a.BaseFee.Uint64(), b.BaseFee.Uint64())
+	// fmt.Println(a.Extra == b.Extra)
+	fmt.Println("MixDigest", a.MixDigest == b.MixDigest)
+	fmt.Println("WithdrawalsHash", a.WithdrawalsHash == b.WithdrawalsHash)
+	fmt.Println("ExcessBlobGas a: %v, b: %v, original: %v", a.ExcessBlobGas, b.ExcessBlobGas, c.ExcessBlobGas)
+	fmt.Printf("BlobGasUsed a: %v, b: %v, original: %v", a.BlobGasUsed, b.BlobGasUsed, c.BlobGasUsed)
+	fmt.Println("ParentBeaconBlockRoot ", a.ParentBeaconBlockRoot == b.ParentBeaconBlockRoot)
 }

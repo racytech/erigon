@@ -188,12 +188,19 @@ func (api *EngineAPI) newPayload(payload *ExecutionPayload, expectedBlobHashes [
 	if err != nil {
 		msg = fmt.Sprintf("%v error constructing block from execution payload", logPrefix)
 		api._warn(msg, []interface{}{"error", err.Error()}...)
-		return payloadResponse(INVALID, err, block.Hash(), nil), nil
+		return payloadResponse(INVALID, err, libcommon.Hash{}, nil), nil
 	}
 
 	parent, err := api.chain.blockByHash(block.ParentHash())
+	if err != nil {
+		return nil, err
+	}
 
 	// TODO(racytech): sanity check for TTD PTD and TD (same as in FCU)
+
+	// TODO(racytech): make all required checks here (validity check)
+
+	api.chain.insertBlock(block, parent)
 
 	errMsg := fmt.Sprintf("%v: Reached End", logPrefix)
 	return nil, makeError(SERVER_ERROR, errMsg)

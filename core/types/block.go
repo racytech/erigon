@@ -1152,6 +1152,30 @@ func NewBlockWithHeader(header *Header) *Block {
 	return &Block{header: CopyHeader(header)}
 }
 
+// WithBody returns a copy of the block with the given transaction and uncle contents.
+func (b *Block) WithTransactions(transactions []Transaction) *Block {
+	block := &Block{
+		header:       b.header,
+		transactions: make([]Transaction, len(transactions)),
+		withdrawals:  b.withdrawals,
+	}
+	copy(block.transactions, transactions)
+	return block
+}
+
+// WithWithdrawals returns a copy of the block containing the given withdrawals.
+func (b *Block) WithWithdrawals(withdrawals []*Withdrawal) *Block {
+	block := &Block{
+		header:       b.header,
+		transactions: b.transactions,
+	}
+	if withdrawals != nil {
+		block.withdrawals = make([]*Withdrawal, len(withdrawals))
+		copy(block.withdrawals, withdrawals)
+	}
+	return block
+}
+
 // CopyHeader creates a deep copy of a block header to prevent side effects from
 // modifying a header variable.
 func CopyHeader(h *Header) *Header {

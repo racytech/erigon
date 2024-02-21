@@ -7,10 +7,14 @@ import (
 
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/kv"
+	"github.com/ledgerwatch/erigon-lib/wrap"
+	"github.com/ledgerwatch/erigon/core"
 	"github.com/ledgerwatch/erigon/core/rawdb"
 	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/turbo/services"
 )
+
+type execFunc func(wrap.TxContainer, *core.ChainPack, uint64) error
 
 type blockchain struct {
 	ctx         context.Context
@@ -19,6 +23,8 @@ type blockchain struct {
 
 	memChain    []*types.Block // TODO(racytech): see how much max bytes takes one block
 	memChainIdx int
+
+	// execBlock execFunc
 }
 
 func newBlockChain(ctx context.Context, blockReader services.FullBlockReader, chainDB kv.RwDB) *blockchain {
@@ -163,6 +169,22 @@ func (chain *blockchain) currentHead() (*types.Header, error) {
 	return rawdb.ReadHeaderByHash(tx, hash)
 }
 
-func (chain *blockchain) insertBlock(*types.Block) {
+func (chain *blockchain) insertBlock(block, parent *types.Block) error {
+	tx, err := chain.chainDB.BeginRw(chain.ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 
+	// chain.execBlock(txc, block.Header(), block.RawBody(), 0)
+
+	// MakePreState()
+
+	// r := rpchelper.NewLatestStateReader(tx)
+	// statedb := state.New(r)
+	// w := state.NewPlainStateWriter(tx, nil, block.NumberU64())
+
+	return nil
 }
+
+func makePreState()
