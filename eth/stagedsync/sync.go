@@ -314,7 +314,7 @@ func (s *Sync) RunNoInterrupt(db kv.RwDB, txc wrap.TxContainer, firstCycle bool)
 			s.logger.Warn("--sync.loop.break.after caused stage break")
 			break
 		}
-
+		fmt.Println("StageID: ", stage.ID)
 		s.NextStage()
 	}
 

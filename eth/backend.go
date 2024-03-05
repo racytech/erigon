@@ -544,6 +544,7 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 		if progress < header.Number.Uint64() {
 			return fmt.Errorf("unsuccessful execution, progress %d < expected %d", progress, header.Number.Uint64())
 		}
+		fmt.Println("DONE IN MEM EXECUTION")
 		return nil
 	}
 	backend.forkValidator = engine_helpers.NewForkValidator(ctx, currentBlockNumber, inMemoryExecution, tmpdir, backend.blockReader)
@@ -802,7 +803,7 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 		backend.sentriesClient.Hd,
 		assembleBlockPOS,
 		backend.engine,
-		inMemoryExecution,
+		backend.stagedSync,
 	)
 
 	var engine execution_client.ExecutionEngine
@@ -918,8 +919,8 @@ func (s *Ethereum) Init(stack *node.Node, config *ethconfig.Config, chainConfig 
 	}
 
 	if chainConfig.Bor == nil {
-		// go s.engineBackendRPC.Start(&httpRpcCfg, s.chainDB, s.blockReader, ff, stateCache, s.agg, s.engine, ethRpcClient, txPoolRpcClient, miningRpcClient)
-		go s.engineAPI.Start(&httpRpcCfg, s.chainDB, s.blockReader, ff, stateCache, s.agg, s.engine, ethRpcClient, txPoolRpcClient, miningRpcClient)
+		go s.engineBackendRPC.Start(&httpRpcCfg, s.chainDB, s.blockReader, ff, stateCache, s.agg, s.engine, ethRpcClient, txPoolRpcClient, miningRpcClient)
+		// go s.engineAPI.Start(&httpRpcCfg, s.chainDB, s.blockReader, ff, stateCache, s.agg, s.engine, ethRpcClient, txPoolRpcClient, miningRpcClient)
 	}
 
 	// Register the backend on the node

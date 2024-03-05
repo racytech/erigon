@@ -103,7 +103,7 @@ func (api *EngineAPI) forkchoiceUpdated(update *ForkChoiceState, payloadAttribut
 	if td.Cmp(api.config.TerminalTotalDifficulty) >= 0 { // Reached PoS
 
 		if !isCanonical {
-			// update block is not canonical
+			// fcu block is not canonical
 			fmt.Println("---------------------> BLOCK IS NOT CANONICAL")
 		}
 
@@ -132,13 +132,7 @@ func (api *EngineAPI) forkchoiceUpdated(update *ForkChoiceState, payloadAttribut
 				Timestamp:             timestamp,
 				PrevRandao:            payloadAttributes.PrevRandao,
 				SuggestedFeeRecipient: payloadAttributes.SuggestedFeeRecipient,
-			}
-
-			if version >= shanghai {
-
-			}
-			if version >= cancun {
-
+				Withdrawals:           payloadAttributes.Withdrawals,
 			}
 
 			id := api.builder.startPayloadBuild(&args)
@@ -183,7 +177,6 @@ func (api *EngineAPI) newPayload(payload *ExecutionPayload, expectedBlobHashes [
 	api.logger.Info(msg, []interface{}{"block_hash", payload.BlockHash}...)
 
 	// TODO(racytech): check if we have this block already
-	fmt.Println("WITHDRAWALS BEFORE: ", payload.Withdrawals)
 	block, err := payloadToBlock(payload, expectedBlobHashes, parentBeaconBlockRoot)
 	if err != nil {
 		msg = fmt.Sprintf("%v error constructing block from execution payload", logPrefix)
@@ -196,7 +189,6 @@ func (api *EngineAPI) newPayload(payload *ExecutionPayload, expectedBlobHashes [
 		return nil, err
 	}
 
-	fmt.Println("WITHDRAWALS HASH: ", block.WithdrawalsHash())
 	// TODO(racytech): sanity check for TTD PTD and TD (same as in FCU)
 
 	// TODO(racytech): make all required checks here (validity check)

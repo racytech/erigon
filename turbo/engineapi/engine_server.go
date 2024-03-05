@@ -124,7 +124,7 @@ func (s *EngineServer) newPayload(ctx context.Context, req *engine_types.Executi
 	for _, transaction := range req.Transactions {
 		txs = append(txs, transaction)
 	}
-
+	fmt.Println("WITHDRAWALS: ", req.Withdrawals)
 	header := types.Header{
 		ParentHash:  req.ParentHash,
 		Coinbase:    req.FeeRecipient,

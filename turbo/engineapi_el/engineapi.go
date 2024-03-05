@@ -14,6 +14,7 @@ import (
 	"github.com/ledgerwatch/erigon/cmd/rpcdaemon/cli/httpcfg"
 	"github.com/ledgerwatch/erigon/consensus"
 	"github.com/ledgerwatch/erigon/core/types"
+	"github.com/ledgerwatch/erigon/eth/stagedsync"
 	"github.com/ledgerwatch/erigon/rpc"
 	"github.com/ledgerwatch/erigon/turbo/builder"
 	"github.com/ledgerwatch/erigon/turbo/jsonrpc"
@@ -52,10 +53,10 @@ func NewEngineAPI(
 	hd *headerdownload.HeaderDownload,
 	builderFunc builder.BlockBuilderFunc,
 	engine consensus.Engine,
-	execFunc stagesFunc,
+	stagedSync *stagedsync.Sync,
 ) *EngineAPI {
 
-	chain := newBlockChain(ctx, blockReader, chainDB, logger, config, engine, execFunc)
+	chain := newBlockChain(ctx, blockReader, chainDB, logger, config, engine, stagedSync)
 	builder := newPayloadBuilder(builderFunc)
 	engineAPI := EngineAPI{
 		hd:      hd,
@@ -66,6 +67,7 @@ func NewEngineAPI(
 		builder: builder,
 	}
 
+	newEngineAPIMemDB(chainDB, blockReader)
 	return &engineAPI
 }
 

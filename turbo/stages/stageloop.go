@@ -445,6 +445,7 @@ func StateStep(ctx context.Context, chainReader consensus.ChainReader, engine co
 	if err := addAndVerifyBlockStep(txc.Tx, engine, chainReader, header, body, histV3); err != nil {
 		return err
 	}
+	fmt.Println("------------> Running stages")
 	// Run state sync
 	if err = stateSync.RunNoInterrupt(nil, txc, false /* firstCycle */); err != nil {
 		return err

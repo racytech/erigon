@@ -20,8 +20,8 @@ import (
 	"github.com/ledgerwatch/erigon/core/vm"
 	"github.com/ledgerwatch/erigon/eth/calltracer"
 	"github.com/ledgerwatch/erigon/eth/ethconfig"
+	"github.com/ledgerwatch/erigon/eth/stagedsync"
 	"github.com/ledgerwatch/erigon/turbo/services"
-	"github.com/ledgerwatch/erigon/turbo/shards"
 	"github.com/ledgerwatch/erigon/turbo/trie"
 	"github.com/ledgerwatch/log/v3"
 )
@@ -34,11 +34,8 @@ type blockchain struct {
 	chainDB     kv.RwDB
 	logger      log.Logger
 	config      *chain.Config
-	memChain    []*types.Block // TODO(racytech): see how much max bytes takes one block
-	memChainIdx int
-
-	engine   consensus.Engine
-	execFunc stagesFunc
+	engine      consensus.Engine
+	stagedSync  *stagedsync.Sync
 }
 
 func newBlockChain(
@@ -48,8 +45,7 @@ func newBlockChain(
 	logger log.Logger,
 	cfg *chain.Config,
 	engine consensus.Engine,
-	execFunc stagesFunc,
-
+	stagedSync *stagedsync.Sync,
 ) *blockchain {
 	return &blockchain{
 		ctx:         ctx,
@@ -58,7 +54,7 @@ func newBlockChain(
 		logger:      logger,
 		config:      cfg,
 		engine:      engine,
-		execFunc:    execFunc,
+		stagedSync:  stagedSync,
 	}
 }
 
@@ -221,17 +217,37 @@ func (chain *blockchain) insertBlock(block, parent *types.Block) error {
 	}
 	defer tx.Rollback()
 
+	// execute block
+
+	r := state.NewPlainStateReader(tx)
+	account, err := r.ReadAccountData(libcommon.HexToAddress("0x0000000000000000000000000000000000000316"))
+	fmt.Println("ERROR: ", err)
+	fmt.Println("ACCOUNT: ", account.Balance)
+	fmt.Println("ACCAUNT CODE: ", account.CodeHash)
+	code, err := r.ReadAccountCode(libcommon.HexToAddress("0x0000000000000000000000000000000000000316"), 0, account.CodeHash)
+	fmt.Println("ERROR: ", err)
+	fmt.Printf("CODE: %x\n", code)
+
 	var txc wrap.TxContainer
 	txc.Tx = tx
 
-	var notes = &shards.Notifications{
-		Events:      shards.NewEvents(),
-		Accumulator: shards.NewAccumulator(),
-	}
-	chain.execFunc(txc, block.Header(), block.RawBody(), 0, nil, nil, notes)
+	s, err := chain.stagedSync.Run(chain.chainDB, txc, false)
+	fmt.Println("ERR RUN: ", err)
+	fmt.Println("RESULT: ", s)
 
 	return nil
 }
+
+// var txc wrap.TxContainer
+// txc.Tx = tx
+
+// var notes = &shards.Notifications{
+// 	Events:      shards.NewEvents(),
+// 	Accumulator: shards.NewAccumulator(),
+// }
+
+// chain.logger.Debug("Spawning Stages")
+// err = chain.execFunc(txc, block.Header(), block.RawBody(), 0, nil, nil, notes)
 
 func MakePreState(rules *chain.Rules, tx kv.RwTx, accounts types.GenesisAlloc, blockNr uint64) (*state.IntraBlockState, error) {
 	r := state.NewPlainStateReader(tx)
