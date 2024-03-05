@@ -1,19 +1,23 @@
 package forkchoice
 
 import (
+	"context"
 	"fmt"
 	"time"
 
+	"github.com/ledgerwatch/log/v3"
+
 	"github.com/ledgerwatch/erigon/cl/cltypes"
 	"github.com/ledgerwatch/erigon/cl/cltypes/solid"
-	"github.com/ledgerwatch/erigon/cl/phase1/cache"
 	"github.com/ledgerwatch/erigon/cl/phase1/core/state"
-	"github.com/ledgerwatch/log/v3"
 
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
 )
 
-const maxAttestationJobLifetime = 30 * time.Minute
+const (
+	maxAttestationJobLifetime = 30 * time.Minute
+	maxBlockJobLifetime       = 36 * time.Second // 3 mainnet slots
+)
 
 // OnAttestation processes incoming attestations.
 func (f *ForkChoiceStore) OnAttestation(attestation *solid.Attestation, fromBlock bool, insert bool) error {
@@ -21,22 +25,26 @@ func (f *ForkChoiceStore) OnAttestation(attestation *solid.Attestation, fromBloc
 		return nil
 	}
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.headHash = libcommon.Hash{}
+	f.mu.Unlock()
 	data := attestation.AttestantionData()
 	if err := f.validateOnAttestation(attestation, fromBlock); err != nil {
 		return err
 	}
+	currentEpoch := f.computeEpochAtSlot(f.Slot())
 	// Schedule for later processing.
-	if f.Slot() < attestation.AttestantionData().Slot()+1 {
+	if f.Slot() < attestation.AttestantionData().Slot()+1 || data.Target().Epoch() > currentEpoch {
 		f.scheduleAttestationForLaterProcessing(attestation, fromBlock)
 		return nil
 	}
-	target := data.Target()
-	if cachedIndicies, ok := cache.LoadAttestatingIndicies(&data, attestation.AggregationBits()); ok {
-		f.processAttestingIndicies(attestation, cachedIndicies)
-		return nil
+
+	if !fromBlock {
+		if err := f.validateTargetEpochAgainstCurrentTime(attestation); err != nil {
+			return err
+		}
 	}
+	target := data.Target()
+
 	targetState, err := f.getCheckpointState(target)
 	if err != nil {
 		return nil
@@ -64,7 +72,6 @@ func (f *ForkChoiceStore) OnAttestation(attestation *solid.Attestation, fromBloc
 			return fmt.Errorf("invalid attestation")
 		}
 	}
-	cache.StoreAttestation(&data, attestation.AggregationBits(), attestationIndicies)
 	// Lastly update latest messages.
 	f.processAttestingIndicies(attestation, attestationIndicies)
 	if !fromBlock && insert {
@@ -89,13 +96,10 @@ func (f *ForkChoiceStore) OnAggregateAndProof(aggregateAndProof *cltypes.SignedA
 
 	target := aggregateAndProof.Message.Aggregate.AttestantionData().Target()
 	// getCheckpointState is non-thread safe, so we need to lock
-	f.mu.Lock()
 	targetState, err := f.getCheckpointState(target)
 	if err != nil {
-		f.mu.Unlock()
 		return nil
 	}
-	f.mu.Unlock()
 
 	activeIndiciesLength := uint64(len(targetState.shuffledSet))
 
@@ -130,12 +134,37 @@ func (f *ForkChoiceStore) scheduleAttestationForLaterProcessing(attestation *sol
 	})
 }
 
-func (f *ForkChoiceStore) StartAttestationsRTT() {
+type blockJob struct {
+	block     *cltypes.SignedBeaconBlock
+	blockRoot libcommon.Hash
+	when      time.Time
+}
+
+// scheduleAttestationForLaterProcessing scheudules an attestation for later processing
+func (f *ForkChoiceStore) scheduleBlockForLaterProcessing(block *cltypes.SignedBeaconBlock) {
+	root, err := block.HashSSZ()
+	if err != nil {
+		log.Error("failed to hash block", "err", err)
+		return
+	}
+	blockRoot, err := block.Block.HashSSZ()
+	if err != nil {
+		log.Error("failed to hash block root", "err", err)
+		return
+	}
+	f.blocksSet.Store(root, &blockJob{
+		block:     block,
+		when:      time.Now(),
+		blockRoot: blockRoot,
+	})
+}
+
+func (f *ForkChoiceStore) StartJobsRTT(ctx context.Context) {
 	go func() {
 		interval := time.NewTicker(500 * time.Millisecond)
 		for {
 			select {
-			case <-f.ctx.Done():
+			case <-ctx.Done():
 				return
 			case <-interval.C:
 				f.attestationSet.Range(func(key, value interface{}) bool {
@@ -144,12 +173,45 @@ func (f *ForkChoiceStore) StartAttestationsRTT() {
 						f.attestationSet.Delete(key)
 						return true
 					}
-					if f.Slot() >= job.attestation.AttestantionData().Slot()+1 {
+					currentEpoch := f.computeEpochAtSlot(f.Slot())
+					if f.Slot() >= job.attestation.AttestantionData().Slot()+1 && job.attestation.AttestantionData().Target().Epoch() <= currentEpoch {
 						if err := f.OnAttestation(job.attestation, false, job.insert); err != nil {
 							log.Warn("failed to process attestation", "err", err)
 						}
 						f.attestationSet.Delete(key)
 					}
+					return true
+				})
+			}
+		}
+	}()
+
+	go func() {
+		interval := time.NewTicker(50 * time.Millisecond)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-interval.C:
+				f.blocksSet.Range(func(key, value interface{}) bool {
+					job := value.(*blockJob)
+					if time.Since(job.when) > maxBlockJobLifetime {
+						f.blocksSet.Delete(key)
+						return true
+					}
+
+					f.mu.Lock()
+					if err := f.isDataAvailable(ctx, job.block.Block.Slot, job.blockRoot, job.block.Block.Body.BlobKzgCommitments); err != nil {
+						f.mu.Unlock()
+						return true
+					}
+					f.mu.Unlock()
+
+					if err := f.OnBlock(ctx, job.block, true, true, true); err != nil {
+						log.Warn("failed to process attestation", "err", err)
+					}
+					f.blocksSet.Delete(key)
+
 					return true
 				})
 			}
@@ -201,6 +263,8 @@ func (f *ForkChoiceStore) setUnequivocating(validatorIndex uint64) {
 }
 
 func (f *ForkChoiceStore) processAttestingIndicies(attestation *solid.Attestation, indicies []uint64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	beaconBlockRoot := attestation.AttestantionData().BeaconBlockRoot()
 	target := attestation.AttestantionData().Target()
 
@@ -221,11 +285,6 @@ func (f *ForkChoiceStore) processAttestingIndicies(attestation *solid.Attestatio
 func (f *ForkChoiceStore) validateOnAttestation(attestation *solid.Attestation, fromBlock bool) error {
 	target := attestation.AttestantionData().Target()
 
-	if !fromBlock {
-		if err := f.validateTargetEpochAgainstCurrentTime(attestation); err != nil {
-			return err
-		}
-	}
 	if target.Epoch() != f.computeEpochAtSlot(attestation.AttestantionData().Slot()) {
 		return fmt.Errorf("mismatching target epoch with slot data")
 	}

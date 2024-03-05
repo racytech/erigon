@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/c2h5oh/datasize"
 	"github.com/ledgerwatch/erigon-lib/common"
 
 	"github.com/ledgerwatch/erigon/cl/beacon/beaconevents"
-	"github.com/ledgerwatch/erigon/cl/cltypes/solid"
 	"github.com/ledgerwatch/erigon/cl/freezer"
 	"github.com/ledgerwatch/erigon/cl/gossip"
 	"github.com/ledgerwatch/erigon/cl/persistence"
@@ -117,15 +117,6 @@ func (g *GossipManager) onRecv(ctx context.Context, data *sentinel.GossipData, l
 			"slot", block.Block.Slot,
 		)
 		g.gossipSource.InsertBlock(ctx, &peers.PeeredObject[*cltypes.SignedBeaconBlock]{Data: block, Peer: data.Peer.Pid})
-
-	case gossip.TopicNameSyncCommitteeContributionAndProof:
-		obj := &solid.SignedContributionAndProof{}
-		if err := obj.DecodeSSZ(common.CopyBytes(data.Data), int(version)); err != nil {
-			g.sentinel.BanPeer(ctx, data.Peer)
-			l["at"] = "decoding signed contribution and proof"
-			return err
-		}
-		g.emitters.Publish("contribution_and_proof", obj)
 	case gossip.TopicNameLightClientFinalityUpdate:
 		obj := &cltypes.LightClientFinalityUpdate{}
 		if err := obj.DecodeSSZ(common.CopyBytes(data.Data), int(version)); err != nil {
@@ -140,7 +131,7 @@ func (g *GossipManager) onRecv(ctx context.Context, data *sentinel.GossipData, l
 			l["at"] = "decoding lc optimistic update"
 			return err
 		}
-	case gossip.TopicNameContributionAndProof:
+	case gossip.TopicNameSyncCommitteeContributionAndProof:
 		if err := operationsContract[*cltypes.SignedContributionAndProof](ctx, g, l, data, int(version), "contribution and proof", g.forkChoice.OnSignedContributionAndProof); err != nil {
 			return err
 		}
@@ -161,8 +152,60 @@ func (g *GossipManager) onRecv(ctx context.Context, data *sentinel.GossipData, l
 			return err
 		}
 	case gossip.TopicNameBeaconAggregateAndProof:
-		if err := operationsContract[*cltypes.SignedAggregateAndProof](ctx, g, l, data, int(version), "aggregate and proof", g.forkChoice.OnAggregateAndProof); err != nil {
-			return err
+		return nil
+	// if err := operationsContract[*cltypes.SignedAggregateAndProof](ctx, g, l, data, int(version), "aggregate and proof", g.forkChoice.OnAggregateAndProof); err != nil {
+	// 	return err
+	// } Uncomment when fixed.
+	default:
+		switch {
+		case gossip.IsTopicBlobSidecar(data.Name):
+			// decode sidecar
+			blobSideCar := &cltypes.BlobSidecar{}
+			if err := blobSideCar.DecodeSSZ(common.CopyBytes(data.Data), int(version)); err != nil {
+				g.sentinel.BanPeer(ctx, data.Peer)
+				l["at"] = "decoding blob sidecar"
+				return err
+			}
+			// [REJECT] The sidecar's index is consistent with MAX_BLOBS_PER_BLOCK -- i.e. blob_sidecar.index < MAX_BLOBS_PER_BLOCK.
+			if blobSideCar.Index >= g.beaconConfig.MaxBlobsPerBlock {
+				g.sentinel.BanPeer(ctx, data.Peer)
+				return fmt.Errorf("blob index out of range")
+			}
+			sidecarSubnetIndex := blobSideCar.Index % g.beaconConfig.MaxBlobsPerBlock
+			if sidecarSubnetIndex != *data.SubnetId {
+				g.sentinel.BanPeer(ctx, data.Peer)
+				return fmt.Errorf("blob index mismatch")
+			}
+			currentSlot := utils.GetCurrentSlot(g.genesisConfig.GenesisTime, g.beaconConfig.SecondsPerSlot)
+			// [REJECT] The sidecar's slot is consistent with the current slot -- i.e. blob_sidecar.slot == current_slot.
+			if blobSideCar.SignedBlockHeader.Header.Slot > currentSlot+1 {
+				g.sentinel.BanPeer(ctx, data.Peer)
+				return fmt.Errorf("blob slot too far ahead")
+			}
+			// [IGNORE] The sidecar's block's parent (defined by block_header.parent_root) has been seen (via both gossip and non-gossip sources) (a client MAY queue sidecars for processing once the parent block is retrieved).
+			if _, has := g.forkChoice.GetHeader(blobSideCar.SignedBlockHeader.Header.ParentRoot); !has {
+				return nil
+			}
+			blockRoot, err := blobSideCar.SignedBlockHeader.Header.HashSSZ()
+			if err != nil {
+				return err
+			}
+			// Do not bother with blocks processed by fork choice already.
+			if _, has := g.forkChoice.GetHeader(blockRoot); has {
+				return nil
+			}
+			// The background checks above are enough for now.
+			if err := g.forkChoice.OnBlobSidecar(blobSideCar, false); err != nil {
+				g.sentinel.BanPeer(ctx, data.Peer)
+				return err
+			}
+
+			if _, err := g.sentinel.PublishGossip(ctx, data); err != nil {
+				log.Debug("failed publish gossip", "err", err)
+			}
+
+			log.Debug("Received blob sidecar via gossip", "index", *data.SubnetId, "size", datasize.ByteSize(len(blobSideCar.Blob)))
+		default:
 		}
 	}
 	return nil
@@ -174,6 +217,7 @@ func (g *GossipManager) Start(ctx context.Context) {
 		return
 	}
 	operationsCh := make(chan *sentinel.GossipData, 1<<16)
+	blobsCh := make(chan *sentinel.GossipData, 1<<16)
 	blocksCh := make(chan *sentinel.GossipData, 1<<16)
 
 	// Start a goroutine that listens for new gossip messages and sends them to the operations processor.
@@ -186,7 +230,7 @@ func (g *GossipManager) Start(ctx context.Context) {
 				l := log.Ctx{}
 				err = g.onRecv(ctx, data, l)
 				if err != nil {
-					log.Debug("[Beacon Gossip] Recoverable Error")
+					log.Debug("[Beacon Gossip] Recoverable Error", "err", err)
 				}
 			}
 		}
@@ -201,7 +245,22 @@ func (g *GossipManager) Start(ctx context.Context) {
 				l := log.Ctx{}
 				err = g.onRecv(ctx, data, l)
 				if err != nil {
-					log.Debug("[Beacon Gossip] Recoverable Error", l)
+					log.Debug("[Beacon Gossip] Recoverable Error", "err", err)
+				}
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case data := <-blobsCh:
+				l := log.Ctx{}
+				err = g.onRecv(ctx, data, l)
+				if err != nil {
+					log.Warn("[Beacon Gossip] Recoverable Error", "err", err)
 				}
 			}
 		}
@@ -216,6 +275,8 @@ func (g *GossipManager) Start(ctx context.Context) {
 
 		if data.Name == gossip.TopicNameBeaconBlock {
 			blocksCh <- data
+		} else if gossip.IsTopicBlobSidecar(data.Name) {
+			blobsCh <- data
 		} else {
 			operationsCh <- data
 		}

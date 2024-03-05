@@ -26,7 +26,7 @@ type engineAPIMemDB struct {
 }
 
 func newEngineAPIMemDB(chainDB kv.RwDB, blockReader services.FullBlockReader) *engineAPIMemDB {
-	// 1. get N_BLOCKS blocks from chainDB (if any || genesis only)
+	// 1. get N_BLOCKS blocks from chainDB (if any or genesis only)
 	// 2. insert them into newly created memDB so we have some reference when CL asks
 	// 		- this also required for payload validation, block execution
 	return nil
