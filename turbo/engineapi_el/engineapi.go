@@ -9,24 +9,21 @@ import (
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon-lib/kv/kvcache"
 	"github.com/ledgerwatch/erigon-lib/state"
-	"github.com/ledgerwatch/erigon-lib/wrap"
 	"github.com/ledgerwatch/erigon/cmd/rpcdaemon/cli"
 	"github.com/ledgerwatch/erigon/cmd/rpcdaemon/cli/httpcfg"
 	"github.com/ledgerwatch/erigon/consensus"
-	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/eth/stagedsync"
 	"github.com/ledgerwatch/erigon/rpc"
 	"github.com/ledgerwatch/erigon/turbo/builder"
 	"github.com/ledgerwatch/erigon/turbo/jsonrpc"
 	"github.com/ledgerwatch/erigon/turbo/rpchelper"
 	"github.com/ledgerwatch/erigon/turbo/services"
-	"github.com/ledgerwatch/erigon/turbo/shards"
 	"github.com/ledgerwatch/erigon/turbo/stages/headerdownload"
 	"github.com/ledgerwatch/log/v3"
 )
 
-type stagesFunc = func(txc wrap.TxContainer, header *types.Header, body *types.RawBody, unwindPoint uint64, headersChain []*types.Header, bodiesChain []*types.RawBody,
-	notifications *shards.Notifications) error
+// type stagesFunc = func(txc wrap.TxContainer, header *types.Header, body *types.RawBody, unwindPoint uint64, headersChain []*types.Header, bodiesChain []*types.RawBody,
+// 	notifications *shards.Notifications) error
 
 type EngineAPI struct {
 	hd *headerdownload.HeaderDownload
@@ -55,8 +52,12 @@ func NewEngineAPI(
 	engine consensus.Engine,
 	stagedSync *stagedsync.Sync,
 ) *EngineAPI {
-
-	chain := newBlockChain(ctx, blockReader, chainDB, logger, config, engine, stagedSync)
+	memDB, err := newEngineAPIMemDB(chainDB, ctx)
+	if err != nil {
+		log.Error("NewEngineAPI: error creating memory DB: ", err)
+		return nil
+	}
+	chain := newBlockChain(ctx, blockReader, memDB, chainDB, logger, config, engine, stagedSync)
 	builder := newPayloadBuilder(builderFunc)
 	engineAPI := EngineAPI{
 		hd:      hd,
@@ -67,7 +68,6 @@ func NewEngineAPI(
 		builder: builder,
 	}
 
-	newEngineAPIMemDB(chainDB, blockReader)
 	return &engineAPI
 }
 

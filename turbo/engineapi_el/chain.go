@@ -3,8 +3,10 @@ package engineapi_el
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math/big"
+	mrand "math/rand"
 
 	"github.com/holiman/uint256"
 	"github.com/ledgerwatch/erigon-lib/chain"
@@ -17,8 +19,6 @@ import (
 	"github.com/ledgerwatch/erigon/core/rawdb"
 	"github.com/ledgerwatch/erigon/core/state"
 	"github.com/ledgerwatch/erigon/core/types"
-	"github.com/ledgerwatch/erigon/core/vm"
-	"github.com/ledgerwatch/erigon/eth/calltracer"
 	"github.com/ledgerwatch/erigon/eth/ethconfig"
 	"github.com/ledgerwatch/erigon/eth/stagedsync"
 	"github.com/ledgerwatch/erigon/turbo/services"
@@ -29,18 +29,20 @@ import (
 // type execFunc func(wrap.TxContainer, *core.ChainPack, uint64) error
 
 type blockchain struct {
-	ctx         context.Context
-	blockReader services.FullBlockReader
-	chainDB     kv.RwDB
-	logger      log.Logger
-	config      *chain.Config
-	engine      consensus.Engine
-	stagedSync  *stagedsync.Sync
+	ctx context.Context
+	// blockReader services.FullBlockReader
+	chainDB    kv.RwDB
+	logger     log.Logger
+	config     *chain.Config
+	engine     consensus.Engine
+	stagedSync *stagedsync.Sync
+	rand       *mrand.Rand
 }
 
 func newBlockChain(
 	ctx context.Context,
 	blockReader services.FullBlockReader,
+	memDB kv.RwDB,
 	chainDB kv.RwDB,
 	logger log.Logger,
 	cfg *chain.Config,
@@ -48,13 +50,13 @@ func newBlockChain(
 	stagedSync *stagedsync.Sync,
 ) *blockchain {
 	return &blockchain{
-		ctx:         ctx,
-		blockReader: blockReader,
-		chainDB:     chainDB,
-		logger:      logger,
-		config:      cfg,
-		engine:      engine,
-		stagedSync:  stagedSync,
+		ctx: ctx,
+		// blockReader: blockReader,
+		chainDB:    chainDB,
+		logger:     logger,
+		config:     cfg,
+		engine:     engine,
+		stagedSync: stagedSync,
 	}
 }
 
@@ -101,13 +103,13 @@ func (chain *blockchain) blockByHash(hash libcommon.Hash) (*types.Block, error) 
 	}
 	defer tx.Rollback()
 
-	if chain.blockReader == nil {
-		return nil, fmt.Errorf("EnginAPI: blockByHash: blockreader is nil")
-	}
+	// if chain.blockReader == nil {
+	// 	return nil, fmt.Errorf("EnginAPI: blockByHash: blockreader is nil")
+	// }
 
-	if chain.blockReader != nil {
-		return chain.blockReader.BlockByHash(chain.ctx, tx, hash)
-	}
+	// if chain.blockReader != nil {
+	// 	return chain.blockReader.BlockByHash(chain.ctx, tx, hash)
+	// }
 
 	blockNumber := rawdb.ReadHeaderNumber(tx, hash)
 	if blockNumber == nil {
@@ -124,9 +126,9 @@ func (chain *blockchain) headerByHash(hash libcommon.Hash) (*types.Header, error
 	}
 	defer tx.Rollback()
 
-	if chain.blockReader != nil {
-		return chain.blockReader.HeaderByHash(chain.ctx, tx, hash)
-	}
+	// if chain.blockReader != nil {
+	// 	return chain.blockReader.HeaderByHash(chain.ctx, tx, hash)
+	// }
 
 	return rawdb.ReadHeaderByHash(tx, hash)
 }
@@ -159,13 +161,13 @@ func (chain *blockchain) canonicalHash(hash libcommon.Hash) (libcommon.Hash, err
 	defer tx.Rollback()
 
 	blockNumber := rawdb.ReadHeaderNumber(tx, hash)
-	if blockNumber == nil {
-		return libcommon.Hash{}, nil
-	}
+	// if blockNumber == nil {
+	// 	return libcommon.Hash{}, nil
+	// }
 
-	if chain.blockReader != nil {
-		return chain.blockReader.CanonicalHash(chain.ctx, tx, *blockNumber)
-	}
+	// if chain.blockReader != nil {
+	// 	return chain.blockReader.CanonicalHash(chain.ctx, tx, *blockNumber)
+	// }
 
 	return rawdb.ReadCanonicalHash(tx, *blockNumber)
 }
@@ -187,56 +189,189 @@ func (chain *blockchain) currentHead() (*types.Header, error) {
 	defer tx.Rollback()
 
 	hash := rawdb.ReadHeadHeaderHash(tx)
-	if chain.blockReader != nil {
-		fmt.Println("USING BLOCK READER")
-		number := rawdb.ReadHeaderNumber(tx, hash)
-		return chain.blockReader.Header(chain.ctx, tx, hash, *number)
-	}
+	// if chain.blockReader != nil {
+	// 	fmt.Println("USING BLOCK READER")
+	// 	number := rawdb.ReadHeaderNumber(tx, hash)
+	// 	return chain.blockReader.Header(chain.ctx, tx, hash, *number)
+	// }
 
 	return rawdb.ReadHeaderByHash(tx, hash)
 }
 
-var VMcfg = &vm.Config{
-	Tracer:     calltracer.NewCallTracer(),
-	ReadOnly:   true,
-	NoReceipts: true,
+func (chain *blockchain) writeBlockToDB(block, parent *types.Block) error {
+	tx, err := chain.chainDB.BeginRw(chain.ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	parentTd, err := rawdb.ReadTd(tx, parent.Hash(), parent.NumberU64())
+	if err != nil {
+		return fmt.Errorf("error getting parent TD: %v", err)
+	}
+	// Sum TDs.
+	td := parentTd.Add(parentTd, block.Difficulty())
+	if err := rawdb.WriteTd(tx, block.Hash(), block.NumberU64(), td); err != nil {
+		return fmt.Errorf("error writeBlockToDB - WriteTd: %s", err)
+	}
+
+	if err := rawdb.WriteBlock(tx, block); err != nil {
+		return fmt.Errorf("error writeBlockToDB - WriteBlock: %s", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("error could not commit tx: %s", err)
+	}
+	return nil
 }
 
-// func newVmCfg() *vm.Config {
-// 	return &vm.Config{
-// 		Tracer:     calltracer.NewCallTracer(),
-// 		ReadOnly:   true,
-// 		NoReceipts: true,
-// 	}
-// }
+func (chain *blockchain) insertBlock(block *types.Block) error {
 
-func (chain *blockchain) insertBlock(block, parent *types.Block) error {
+	currentHead, err := chain.currentHead()
+	if err != nil {
+		return fmt.Errorf("error getting currentHead: %v", err)
+	}
+
+	parent, err := chain.blockByHash(block.ParentHash())
+	if err != nil {
+		return fmt.Errorf("error getting parent: %v", err)
+	}
+
+	reorg, err := chain.reorgNeeded(currentHead, block.Header())
+	if err != nil {
+		log.Warn("reorgNeeded", "error", err)
+	}
+	fmt.Println("Reorg needed: ", reorg)
+
+	if reorg {
+
+	}
+
+	err = chain.writeBlockToDB(block, parent)
+	if err != nil {
+		return err
+	}
+
 	tx, err := chain.chainDB.BeginRw(chain.ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	// execute block
-
-	r := state.NewPlainStateReader(tx)
-	account, err := r.ReadAccountData(libcommon.HexToAddress("0x0000000000000000000000000000000000000316"))
-	fmt.Println("ERROR: ", err)
-	fmt.Println("ACCOUNT: ", account.Balance)
-	fmt.Println("ACCAUNT CODE: ", account.CodeHash)
-	code, err := r.ReadAccountCode(libcommon.HexToAddress("0x0000000000000000000000000000000000000316"), 0, account.CodeHash)
-	fmt.Println("ERROR: ", err)
-	fmt.Printf("CODE: %x\n", code)
-
 	var txc wrap.TxContainer
 	txc.Tx = tx
+	result, err := chain.stagedSync.Run(chain.chainDB, txc, false)
+	if err != nil {
+		return fmt.Errorf("error stagedSync Run: %v", err)
+	}
 
-	s, err := chain.stagedSync.Run(chain.chainDB, txc, false)
-	fmt.Println("ERR RUN: ", err)
-	fmt.Println("RESULT: ", s)
-
+	fmt.Println("RESULT: ", result)
 	return nil
 }
+
+// ReorgNeeded returns whether the reorg should be applied
+// based on the given external header and local canonical chain.
+// In the td mode, the new head is chosen if the corresponding
+// total difficulty is higher. In the extern mode, the trusted
+// header is always selected as the head.
+func (chain *blockchain) reorgNeeded(current *types.Header, extern *types.Header) (bool, error) {
+
+	localTD, err := chain.getTotalDifficulty(current.Hash(), current.Number.Uint64())
+	if err != nil {
+		return false, fmt.Errorf("error getting totalDifficulty for current head: %v", err)
+	}
+	externTd, err := chain.getTotalDifficulty(extern.Hash(), extern.Number.Uint64())
+	if err != nil {
+		return false, fmt.Errorf("error getting totalDifficulty for extern head: %v", err)
+	}
+
+	if localTD == nil || externTd == nil {
+		return false, errors.New("missing td")
+	}
+	// Accept the new header as the chain head if the transition
+	// is already triggered. We assume all the headers after the
+	// transition come from the trusted consensus layer.
+	if ttd := chain.config.TerminalTotalDifficulty; ttd != nil && ttd.Cmp(externTd) <= 0 {
+		return true, nil
+	}
+
+	// If the total difficulty is higher than our known, add it to the canonical chain
+	if diff := externTd.Cmp(localTD); diff > 0 {
+		return true, nil
+	} else if diff < 0 {
+		return false, nil
+	}
+	// Local and external difficulty is identical.
+	// Second clause in the if statement reduces the vulnerability to selfish mining.
+	// Please refer to http://www.cs.cornell.edu/~ie53/publications/btcProcFC.pdf
+	reorg := false
+	externNum, localNum := extern.Number.Uint64(), current.Number.Uint64()
+	if externNum < localNum {
+		reorg = true
+	} else if externNum == localNum {
+		var currentPreserve, externPreserve bool
+
+		reorg = !currentPreserve && (externPreserve || chain.rand.Float64() < 0.5)
+	}
+	return reorg, nil
+}
+
+// // execute block
+// vmConfig := &vm.Config{}
+
+// stateWriter := state.NewPlainStateWriter(tx, nil, block.NumberU64()+1)
+// stateReader := state.NewPlainStateReader(tx)
+// ibs := state.New(stateReader)
+// header := block.Header()
+
+// gp := new(core.GasPool)
+// gp.AddGas(block.GasLimit()).AddBlobGas(chain.config.GetMaxBlobGasPerBlock())
+
+// getHeader := func(hash common.Hash, number uint64) *types.Header {
+// 	h, _ := chain.blockReader.Header(context.Background(), tx, hash, number)
+// 	return h
+// }
+// getHashFn := core.GetHashFn(block.Header(), getHeader)
+
+// blockContext := core.NewEVMBlockContext(header, getHashFn, chain.engine, nil)
+// evm := vm.NewEVM(blockContext, evmtypes.TxContext{}, ibs, chain.config, *vmConfig)
+
+// rules := chain.config.Rules(block.NumberU64(), block.Time())
+// for i, txn := range block.Transactions() {
+// 	msg, err := txn.AsMessage(*types.MakeSigner(chain.config, block.NumberU64(), block.Time()), block.BaseFee(), rules)
+// 	if err != nil {
+// 		return fmt.Errorf("Error txn.AsMessage: %v", err)
+// 	}
+
+// 	txContext := core.NewEVMTxContext(msg)
+
+// 	evm.Reset(txContext, ibs)
+
+// 	_, err = core.ApplyMessage(evm, msg, gp, true, false)
+// 	if err != nil {
+// 		return fmt.Errorf("error ApplyMessage: %v", err)
+// 	}
+// 	// Update the state with pending changes
+// 	if err = ibs.FinalizeTx(rules, stateWriter); err != nil {
+// 		return fmt.Errorf("error FinalizeTx: %v", err)
+// 	}
+
+// 	fmt.Printf("TX %v: Done\n", i)
+// }
+
+// if err = ibs.CommitBlock(rules, stateWriter); err != nil {
+// 	return fmt.Errorf("error ibs.CommitBlock: %v", err)
+// }
+
+// ibs.SetTxContext(txn.Hash(), block.Hash(), i)
+
+// receipt, _, err := core.ApplyTransaction(chain.config, getHashFn, chain.engine, nil, gp, ibs, noop, header, txn, usedGas, usedBlobGas, *vmConfig)
+// if err != nil {
+// 	rejectedTxs = append(rejectedTxs, &core.RejectedTx{Index: i, Err: err.Error()})
+// } else {
+// 	receipts = append(receipts, receipt)
+// }
+
+// fmt.Printf("RECEIPT #%v: type = %v\n", i, receipt.Type)
 
 // var txc wrap.TxContainer
 // txc.Tx = tx

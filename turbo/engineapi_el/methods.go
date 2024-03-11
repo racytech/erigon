@@ -98,6 +98,8 @@ func (api *EngineAPI) forkchoiceUpdated(update *ForkChoiceState, payloadAttribut
 	if err != nil {
 		return nil, makeError(SERVER_ERROR, err.Error())
 	}
+	fmt.Println("TD: ", td.Uint64())
+	fmt.Println("BLOCK TD: ", block.Difficulty())
 	__assert_true(td != nil, "api.chain.getTotalDifficulty: There is an error somewhere up the call stack: td == nil")
 
 	if td.Cmp(api.config.TerminalTotalDifficulty) >= 0 { // Reached PoS
@@ -184,16 +186,11 @@ func (api *EngineAPI) newPayload(payload *ExecutionPayload, expectedBlobHashes [
 		return payloadResponse(INVALID, err, libcommon.Hash{}, nil), nil
 	}
 
-	parent, err := api.chain.blockByHash(block.ParentHash())
-	if err != nil {
-		return nil, err
-	}
-
 	// TODO(racytech): sanity check for TTD PTD and TD (same as in FCU)
 
 	// TODO(racytech): make all required checks here (validity check)
 
-	err = api.chain.insertBlock(block, parent)
+	err = api.chain.insertBlock(block)
 	if err != nil {
 		errMsg := err.Error()
 		return &PayloadStatus{
@@ -201,8 +198,8 @@ func (api *EngineAPI) newPayload(payload *ExecutionPayload, expectedBlobHashes [
 			ValidationError: &errMsg,
 		}, err
 	}
-	errMsg := fmt.Sprintf("%v: Reached End", logPrefix)
-	return nil, makeError(SERVER_ERROR, errMsg)
+	// errMsg := fmt.Sprintf("%v: Reached End", logPrefix)
+	return &PayloadStatus{Status: VALID, LatestValidHash: block.Hash()}, nil
 }
 
 /* ----------------- GetPayload V1, V2, V3 ----------------- */

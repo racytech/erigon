@@ -532,6 +532,7 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 
 	inMemoryExecution := func(txc wrap.TxContainer, header *types.Header, body *types.RawBody, unwindPoint uint64, headersChain []*types.Header, bodiesChain []*types.RawBody,
 		notifications *shards.Notifications) error {
+
 		terseLogger := log.New()
 		terseLogger.SetHandler(log.LvlFilterHandler(log.LvlWarn, log.StderrHandler))
 		// Needs its own notifications to not update RPC daemon and txpool about pending blocks
@@ -551,6 +552,7 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 			return fmt.Errorf("unsuccessful execution, progress %d < expected %d", progress, header.Number.Uint64())
 		}
 		fmt.Println("DONE IN MEM EXECUTION")
+		panic("Running inMemoryExecution")
 		return nil
 	}
 	backend.forkValidator = engine_helpers.NewForkValidator(ctx, currentBlockNumber, inMemoryExecution, tmpdir, backend.blockReader)
@@ -809,7 +811,7 @@ func New(ctx context.Context, stack *node.Node, config *ethconfig.Config, logger
 		backend.sentriesClient.Hd,
 		assembleBlockPOS,
 		backend.engine,
-		backend.stagedSync,
+		backend.pipelineStagedSync,
 	)
 
 	var engine execution_client.ExecutionEngine
